@@ -1,0 +1,49 @@
+{
+  "name": "mrmd-sync",
+  "version": "0.2.0",
+  "description": "Production-ready sync server for mrmd - real-time collaboration with file persistence",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "bin": {
+    "mrmd-sync": "./bin/cli.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node bin/cli.js",
+    "dev": "node bin/cli.js --dev",
+    "test": "node --test test/sync.test.js",
+    "test:watch": "node --test --watch test/sync.test.js"
+  },
+  "keywords": [
+    "mrmd",
+    "markdown",
+    "collaboration",
+    "yjs",
+    "sync",
+    "websocket",
+    "crdt",
+    "realtime",
+    "editor"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "yjs": "^13.6.0",
+    "y-protocols": "^1.0.6",
+    "lib0": "^0.2.0",
+    "diff": "^5.2.0",
+    "chokidar": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10"
+  }
+}
