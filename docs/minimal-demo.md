@@ -2,62 +2,39 @@
 
 This is the mrmd editor with **all defaults** - no custom styling.
 
+hello
+
+```js
+w = Math.abs(-2)
+w + 32
+```
+
+```output
+34
+```
+ -
+
 ## Python
 
+ok ok ok i start typing. Nice i i"ll continue typing here. ok and i'll pick it up from here
+
+ok sorry i am here now
+
+
+
+And this is a test of some uh voice command here.
+ 
 ```python
 import math
-x = 33
+x = 333432
 print(f"The answer is {x}")
 math.sqrt(x)
 ```
 
 ```output
-The answer is 33
-Out[21]: 5.744562646538029
+The answer is 333432
+Out[49]: 577.4357107072614
 ```
-yesyeyseys
-fd
-```html
-<p>hello something</p>
-```
-
-```output
-<p>hello something</p>
-```
-
-
-<p>hello</p>
-
-
-```css
-h2 {color: blue}
-```
-
-```output
-CSS: 1 rule
-```
-
-
-## JavaScript
-
-```javascript
-const items = ["apple", "banana", "cherry"];
-console.log("Items:", items.join(", "));
-items.length+132
-```
-
-```output
-Items: apple, banana, cherry
-135
-```
-
-## Markdown
-
-- Lists work
-- **Bold** and *italic*
-- `inline code`
-
-> Blockquotes too
 
 ---
 
@@ -76,6 +53,13 @@ A comprehensive guide to Rich's progress bars, spinners, and interactive element
 pip install rich
 ```
 
+
+helleo ok but
+
+nnoow what
+
+
+
 ---
 
 ## 1. Simple Progress with `track()`
@@ -84,18 +68,24 @@ The easiest way to add progress to any iterable:
 
 ```python
 from rich.progress import track
-import time
+import time 
+
 
 for item in track(range(100), description="Processing..."):
-    time.sleep(0.02)
+    time.sleep(0.02),
+
 ```
 
 ```output
 Processing... [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [33m0:00:02[0m
 ```
 
+
+this is good!!!
+
 With custom styling:
 
+thisis qyite strangge
 ```python
 from rich.progress import track
 
@@ -103,16 +93,19 @@ data = ["file1.txt", "file2.txt", "file3.txt", "file4.txt"]
 
 for filename in track(data, description="[cyan]Reading files..."):
     process_file(filename)
+
+FileExi
 ```
 
 ```output
 [36mReading files...[0m [38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m  0%[0m [36m-:--:--[0m
 [31m---------------------------------------------------------------------------[0m
 [31mNameError[0m                                 Traceback (most recent call last)
-[36mCell [32mIn[15], line 6[0m
+[36mCell [32mIn[40], line 6[0m
 [32m      3[0m data = [[33m"file1.txt"[0m, [33m"file2.txt"[0m, [33m"file3.txt"[0m, [33m"file4.txt"[0m]
 [32m      5[0m [1;38;5;28mfor[0m filename [1;38;5;129min[0m track(data, description=[33m"[cyan]Reading files..."[0m):
 [32m----> 6[0m     [43mprocess_file[0m(filename)
+[32m      8[0m [1;38;5;167mFileExistsError[0m
 
 [31mNameError[0m: name 'process_file' is not defined
 [Error: name 'process_file' is not defined]
@@ -355,95 +348,31 @@ else:
 ```
 
 ```output
-What is your name: maxime
-Where do you live [1;36m(New York)[0m: gat
-Pick a color [1;35m[red/green/blue][0m: redd
+What is your name: max
+Where do you live [1;36m(New York)[0m: fd
+Pick a color [1;35m[red/green/blue][0m: df
 [31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: red
-Enter password: /home/maxime/.local/share/uv/python/cpython-3.13.3-linux-x86_64-gnu/lib/python3.13/getpass.py:90: GetPassWarning: Can not control echo on the terminal.
-  passwd = fallback_getpass(prompt, stream)
-Warning: Password input may be echoed.
-[31m---------------------------------------------------------------------------[0m
-[31merror[0m                                     Traceback (most recent call last)
-[36mFile [32m~/.local/share/uv/python/cpython-3.13.3-linux-x86_64-gnu/lib/python3.13/getpass.py:68[0m, in [36munix_getpass[34m(prompt, stream)[0m
-[32m     67[0m [1;38;5;28mtry[0m:
-[32m---> 68[0m     old = [43mtermios.tcgetattr(fd)[0m     [3;38;5;66m# a copy to save[0m
-[32m     69[0m     new = old[:]
-
-[31merror[0m: (25, 'Inappropriate ioctl for device')
-
-During handling of the above exception, another exception occurred:
-
-[31mEOFError[0m                                  Traceback (most recent call last)
-[36mCell [32mIn[17], line 16[0m
-[32m     13[0m color = Prompt.ask([33m"Pick a color"[0m, choices=[[33m"red"[0m, [33m"green"[0m, [33m"blue"[0m])
-[32m     15[0m [3;38;5;66m# Password input[0m
-[32m---> 16[0m password = [43mPrompt.ask([33m"Enter password"[0;43m, password=[1;38;5;28mTrue[0;43m)[0m
-[32m     18[0m [3;38;5;66m# Integer prompt with validation[0m
-[32m     19[0m age = IntPrompt.ask([33m"How old are you"[0m)
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/prompt.py:149[0m, in [36mPromptBase.ask[34m(cls, prompt, console, password, choices, case_sensitive, show_default, show_choices, default, stream)[0m
-[32m    125[0m [3;33m"""Shortcut to construct and run a prompt loop and return the result.[0m
-[32m    126[0m 
-[32m    127[0m [3;33mExample:[0m
-[32m   (...)    138[0m [3;33m    stream (TextIO, optional): Optional text file open for reading to get input. Defaults to None.[0m
-[32m    139[0m [3;33m"""[0m
-[32m    140[0m _prompt = [38;5;28mcls[0m(
-[32m    141[0m     prompt,
-[32m    142[0m     console=console,
-[32m   (...)    147[0m     show_choices=show_choices,
-[32m    148[0m )
-[32m--> 149[0m [1;38;5;28mreturn[0m [43m_prompt(default=default, stream=stream)[0m
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/prompt.py:292[0m, in [36mPromptBase.__call__[34m(self, default, stream)[0m
-[32m    290[0m [38;5;28mself[0m.pre_prompt()
-[32m    291[0m prompt = [38;5;28mself[0m.make_prompt(default)
-[32m--> 292[0m value = [38;5;28;43mself[0;43m.get_input([38;5;28mself[0;43m.console, prompt, [38;5;28mself[0;43m.password, stream=stream)[0m
-[32m    293[0m [1;38;5;28mif[0m value == [33m""[0m [1;38;5;129mand[0m default != ...:
-[32m    294[0m     [1;38;5;28mreturn[0m default
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/prompt.py:211[0m, in [36mPromptBase.get_input[34m(cls, console, prompt, password, stream)[0m
-[32m    193[0m [38;5;129m@classmethod[0m
-[32m    194[0m [1;38;5;28mdef[0;38;5;250m [34mget_input[0m(
-[32m    195[0m     [38;5;28mcls[0m,
-[32m   (...)    199[0m     stream: Optional[TextIO] = [1;38;5;28mNone[0m,
-[32m    200[0m ) -> [38;5;28mstr[0m:
-[32m    201[0m [38;5;250m    [3;33m"""Get input from user.[0m
-[32m    202[0m 
-[32m    203[0m [3;33m    Args:[0m
-[32m   (...)39m    209[0m [3;33m        str: String from user.[0m
-[32m    210[0m [3;33m    """[0m
-[32m--> 211[0m     [1;38;5;28mreturn[0m [43mconsole.input(prompt, password=password, stream=stream)[0m
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/console.py:2165[0m, in [36mConsole.input[34m(self, prompt, markup, emoji, password, stream)[0m
-[32m   2163[0m     [38;5;28mself[0m.print(prompt, markup=markup, emoji=emoji, end=[33m""[0m)
-[32m   2164[0m [1;38;5;28mif[0m password:
-[32m-> 2165[0m     result = [43mgetpass([33m""[0;43m, stream=stream)[0m
-[32m   2166[0m [1;38;5;28melse[0m:
-[32m   2167[0m     [1;38;5;28mif[0m stream:
-
-[36mFile [32m~/.local/share/uv/python/cpython-3.13.3-linux-x86_64-gnu/lib/python3.13/getpass.py:90[0m, in [36munix_getpass[34m(prompt, stream)[0m
-[32m     87[0m         [1;38;5;28mif[0m stream [1;38;5;129mis[0m [1;38;5;129mnot[0m [38;5;28minput[0m:
-[32m     88[0m             [3;38;5;66m# clean up unused file objects before blocking[0m
-[32m     89[0m             stack.close()
-[32m---> 90[0m         passwd = [43mfallback_getpass(prompt, stream)[0m
-[32m     92[0m stream.write([33m'[1;38;5;130m\n[0;33m'[0m)
-[32m     93[0m [1;38;5;28mreturn[0m passwd
-
-[36mFile [32m~/.local/share/uv/python/cpython-3.13.3-linux-x86_64-gnu/lib/python3.13/getpass.py:126[0m, in [36mfallback_getpass[34m(prompt, stream)[0m
-[32m    124[0m     stream = sys.stderr
-[32m    125[0m [38;5;28mprint[0m([33m"Warning: Password input may be echoed."[0m, file=stream)
-[32m--> 126[0m [1;38;5;28mreturn[0m [43m_raw_input(prompt, stream)[0m
-
-[36mFile [32m~/.local/share/uv/python/cpython-3.13.3-linux-x86_64-gnu/lib/python3.13/getpass.py:148[0m, in [36m_raw_input[34m(prompt, stream, input)[0m
-[32m    146[0m line = [38;5;28minput[0m.readline()
-[32m    147[0m [1;38;5;28mif[0m [1;38;5;129mnot[0m line:
-[32m--> 148[0m     [1;38;5;28mraise[0m [1;38;5;167mEOFError[0m
-[32m    149[0m [1;38;5;28mif[0m line[-[32m1[0m] == [33m'[1;38;5;130m\n[0;33m'[0m:
-[32m    150[0m     line = line[:-[32m1[0m]
-
-[31mEOFError[0m: 
-[Error: ]
+Pick a color [1;35m[red/green/blue][0m: dfs
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fds
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: fdsfd
+[31mPlease select one of the available options[0m
+Pick a color [1;35m[red/green/blue][0m: 
 ```
 
 ---
