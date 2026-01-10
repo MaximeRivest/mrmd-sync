@@ -1,18 +1,104 @@
 # Minimal Full Stack Demo
 
+
+```python
+import getpass
+password = getpass.getpass("Enter your password: ")
+print(f"Got {len(password)} character password")
+```
+
+```output:exec-1768067653253-vk5ww
+Enter your password: 
+Got 18 character password
+```
+
+
+
+
+
+
 This is the mrmd editor with **all defaults** - no custom styling.
 
 hello
 
-```js
-w = Math.abs(-2)
-w + 32
+
+```python
+import getpass
+password = getpass.getpass("Enter your password: ")
+print(f"Got {len(password)} character password")
 ```
 
-```output
-34
+
+
+
+
+```python
+import time
+
+time.sleep(3)
+print("done")
 ```
- -
+
+```output:exec-1768067832139-h8hu7
+```
+
+
+```python
+import time
+
+time.sleep(3)
+print("done")
+```
+
+```output:exec-1768067832704-bqf44
+done
+[Error: [Errno 5] Input/output error]
+```
+
+list:
+
+- 3
+- 4
+
+okok
+```js
+a = 24333;
+a;
+```
+```output:exec-1768067821
+193-8kwcq
+24333
+```
+
+
+```python
+a = input("What is your name: ")
+a
+```
+```output:exec-1768067720637-3omex
+What is your name: Max
+Out[19]: 'Max'
+```
+
+
+
+
+
+
+
+
+```python
+a = input("What is your name: ")
+print(f"Hello, {a}!")
+
+```
+
+```output:exec-1768067743818-tmuqu
+What is your name: max
+Hello, max!
+```
+ 
+
 
 ## Python
 
@@ -20,20 +106,23 @@ ok ok ok i start typing. Nice i i"ll continue typing here. ok and i'll pick it u
 
 ok sorry i am here now
 
-
+```json
+{ "a": 2 }
+```
 
 And this is a test of some uh voice command here.
  
 ```python
 import math
-x = 333432
-print(f"The answer is {x}")
-math.sqrt(x)
-```
 
-```output
-The answer is 333432
-Out[49]: 577.4357107072614
+
+def tsts():
+    x = 3
+
+
+x = 33
+```
+```output:exec-1768059576492-ihmgq
 ```
 
 ---
@@ -72,12 +161,8 @@ import time
 
 
 for item in track(range(100), description="Processing..."):
-    time.sleep(0.02),
+  time.sleep(0.02)
 
-```
-
-```output
-Processing... [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [33m0:00:02[0m
 ```
 
 
@@ -89,26 +174,13 @@ thisis qyite strangge
 ```python
 from rich.progress import track
 
-data = ["file1.txt", "file2.txt", "file3.txt", "file4.txt"]
+data = ["file1.txt", 
+        "file2.txt", "file3.txt", "file4.txt"]
 
 for filename in track(data, description="[cyan]Reading files..."):
     process_file(filename)
 
 FileExi
-```
-
-```output
-[36mReading files...[0m [38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m  0%[0m [36m-:--:--[0m
-[31m---------------------------------------------------------------------------[0m
-[31mNameError[0m                                 Traceback (most recent call last)
-[36mCell [32mIn[40], line 6[0m
-[32m      3[0m data = [[33m"file1.txt"[0m, [33m"file2.txt"[0m, [33m"file3.txt"[0m, [33m"file4.txt"[0m]
-[32m      5[0m [1;38;5;28mfor[0m filename [1;38;5;129min[0m track(data, description=[33m"[cyan]Reading files..."[0m):
-[32m----> 6[0m     [43mprocess_file[0m(filename)
-[32m      8[0m [1;38;5;167mFileExistsError[0m
-
-[31mNameError[0m: name 'process_file' is not defined
-[Error: name 'process_file' is not defined]
 ```
 
 ---
@@ -123,14 +195,11 @@ import time
 
 with Progress() as progress:
     task = progress.add_task("[green]Downloading...", total=100)
-    
+
+  
     while not progress.finished:
         progress.update(task, advance=0.5)
         time.sleep(0.01)
-```
-
-```output
-[32mDownloading...[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [36m0:00:00[0m
 ```
 
 ---
@@ -154,12 +223,6 @@ with Progress() as progress:
         progress.update(task2, advance=random.uniform(0.3, 1.0))
         progress.update(task3, advance=random.uniform(0.1, 0.8))
         time.sleep(0.02)
-```
-
-```output
-[31mCompiling...[0m  [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [36m0:00:00[0m
-[32mLinking...[0m    [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [36m0:00:00[0m
-[34mInstalling...[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [36m0:00:00[0m
 ```
 
 ---
@@ -196,10 +259,6 @@ with progress:
     for i in range(50):
         time.sleep(0.05)
         progress.update(task, advance=1)
-```
-
-```output
-  [1;34mProcessing files[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [33m0:00:02[0m [36m0:00:00[0m [32m50/50[0m
 ```
 
 ---
@@ -240,10 +299,6 @@ with progress:
         time.sleep(0.02)
 ```
 
-```output
-  [1;36mDownloading data.zip[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m50.1/50.0 MB[0m [31m14.5 MB/s[0m [36m0:00:00[0m
-```
-
 ---
 
 ## 6. Indeterminate Progress (Unknown Total)
@@ -269,9 +324,6 @@ with Progress(
     time.sleep(0.5)
 ```
 
-```output
-```
-
  a spinner:
 
 ```python
@@ -291,10 +343,6 @@ with console.status("[bold green]Working on it...") as status:
 console.print("[bold green]✓ Done!")
 ```
 
-```output
-[1;32m✓ Done![0m
-```
-
 Different spinner styles:
 
 ```python
@@ -310,9 +358,16 @@ for spinner in spinners:
         time.sleep(1.5)
 ```
 
-```output
-```
 
+
+
+
+fds
+
+fds
+fsd
+f
+dsfsdfsdf
 ---
 
 ## 8. Interactive Prompts
@@ -335,7 +390,8 @@ city = Prompt.ask("Where do you live", default="New York")
 color = Prompt.ask("Pick a color", choices=["red", "green", "blue"])
 
 # Password input
-password = Prompt.ask("Enter password", password=True)
+password = Prompt.ask("Enter password", password
+                      =True)
 
 # Integer prompt with validation
 age = IntPrompt.ask("How old are you")
@@ -347,39 +403,17 @@ else:
     console.print("[red]Cancelled.")
 ```
 
-```output
-What is your name: max
-Where do you live [1;36m(New York)[0m: fd
-Pick a color [1;35m[red/green/blue][0m: df
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: dfs
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fds
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: fdsfd
-[31mPlease select one of the available options[0m
-Pick a color [1;35m[red/green/blue][0m: 
+```output:exec-1768062436614-m3tp9
+What is your name: What is your name: max
+Where do you live [1;36m(New York)[0m: 
+ax
 ```
 
 ---
 
 ## 9. Live Updating Display
 
-Update any renderable in real-time:
+Updateany renderable in real-time:
 
 ```python
 from rich.live import Live
@@ -412,12 +446,12 @@ with Live(generate_table(), refresh_per_second=4) as live:
         live.update(generate_table())
 ```
 
-```output
-  [36mCell [32mIn[29], line 9[0m
+```output:exec-1768062467476-mgj0l
+  [36mCell [32mIn[21], line 9[0m
 [31m    def generate_table() -> Table[0m
                                  ^
 [31mSyntaxError:[0m expected ':'
-[Error: expected ':' (<ipython-input-29-b6b495fdc859>, line 9)]
+[Error: expected ':' (<ipython-input-21-b6b495fdc859>, line 9)]
 ```
 
 ---
@@ -462,19 +496,6 @@ with Live(make_display(), refresh_per_second=10) as live:
         time.sleep(0.3)
 ```
 
-```output
-[34m╭───────────────────────────────────────────────────────────────── Progress ─────────────────────────────────────────────────────────────────╮[0m
-[34m│[0m   [1;36mInstalling click...[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m                                                                        [34m│[0m
-[34m╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯[0m
-[32m╭─────────────────────────────────────────────────────────────────── Log ────────────────────────────────────────────────────────────────────╮[0m
-[32m│[0m [green]✓[/] Installed sklearn                                                                                                              [32m│[0m
-[32m│[0m [green]✓[/] Installed tensorflow                                                                                                           [32m│[0m
-[32m│[0m [green]✓[/] Installed torch                                                                                                                [32m│[0m
-[32m│[0m [green]✓[/] Installed rich                                                                                                                 [32m│[0m
-[32m│[0m [green]✓[/] Installed click                                                                                                                [32m│[0m
-[32m╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯[0m
-```
-
 ---
 
 ## 11. Nested Progress Bars
@@ -497,10 +518,6 @@ with Progress() as progress:
         
         progress.update(overall, advance=1)
         progress.remove_task(batch_task)
-```
-
-```output
-[1;34mOverall[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [36m0:00:00[0m
 ```
 
 ---
@@ -540,10 +557,6 @@ with progress:
         time.sleep(0.03)
 ```
 
-```output
-[1;34mdata.csv[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m (writing)
-```
-
 ---
 
 ## 13. Transient Progress (Disappears When Done)
@@ -562,10 +575,6 @@ with Progress(transient=True) as progress:
         time.sleep(0.02)
 
 console.print("[bold green]✓ Ready to go!")
-```
-
-```output
-[1;32m✓ Ready to go![0m
 ```
 
 ---
@@ -599,11 +608,6 @@ with Progress(
         time.sleep(0.05)
 ```
 
-```output
-[36mASCII style[0m [92m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m
-[35mPulse effect[0m [38;2;59;56;59m━[38;2;58;58;58m━[38;2;59;56;59m━[38;2;64;52;64m━[38;2;72;46;72m━[38;2;82;37;82m━[38;2;93;29;93m━[38;2;103;20;103m━[38;2;113;11;113m━[38;2;121;5;121m━[38;2;126;1;126m━[38;2;128;0;128m━[38;2;126;1;126m━[38;2;121;5;121m━[38;2;113;11;113m━[38;2;103;20;103m━[38;2;93;28;93m━[38;2;82;37;82m━[38;2;72;46;72m━[38;2;64;52;64m━[38;2;59;56;59m━[38;2;58;58;58m━[38;2;59;56;59m━[38;2;64;52;64m━[38;2;72;46;72m━[38;2;82;37;82m━[38;2;93;29;93m━[38;2;103;20;103m━[38;2;113;11;113m━[38;2;121;5;121m━[38;2;126;1;126m━[38;2;128;0;128m━[38;2;126;1;126m━[38;2;121;5;121m━[38;2;113;11;113m━[38;2;103;20;103m━[38;2;93;28;93m━[38;2;82;37;82m━[38;2;72;46;72m━[38;2;64;52;64m━[0m
-```
-
 ---
 
 ## 15. Console Print During Progress
@@ -631,20 +635,6 @@ with Progress(console=console) as progress:
             progress.console.print(f"[green]✓ Completed step {i}")
         
         progress.update(task, advance=1)
-```
-
-```output
-[32m✓ Completed step [1m0[0m
-[32m✓ Completed step [1m1[0m
-[33m⚠ Warning at step [1m2[0m
-[33m⚠ Warning at step [1m3[0m
-[33m⚠ Warning at step [1m4[0m
-[33m⚠ Warning at step [1m5[0m
-[32m✓ Completed step [1m6[0m
-[32m✓ Completed step [1m7[0m
-[32m✓ Completed step [1m8[0m
-[32m✓ Completed step [1m9[0m
-[36mProcessing...[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m100%[0m [36m0:00:00[0m
 ```
 
 ---
@@ -739,105 +729,13 @@ if __name__ == "__main__":
     main()
 ```
 
-```output
-[35m╭────────────────────────────────────────────╮[0m
-[35m│[0m [1;35mRich Progress Demo[0m                         [35m│[0m
-[35m│[0m Interactive demonstration of progress bars [35m│[0m
-[35m╰────────────────────────────────────────────╯[0m
-
-How many tasks to simulate [1;35m[1/2/3/4/5/6/7/8/9/10][0m [1;36m(5)[0m: [31m---------------------------------------------------------------------------[0m
-[31mTimeoutError[0m                              Traceback (most recent call last)
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/src/mrmd_python/server.py:293[0m, in [36mMRPServer.handle_execute_stream.<locals>.event_generator.<locals>.on_stdin_request[34m(request)[0m
-[32m    291[0m [1;38;5;28mtry[0m:
-[32m    292[0m     [3;38;5;66m# Wait up to 5 minutes for input[0m
-[32m--> 293[0m     response = [43mconcurrent_future.result(timeout=[32m300[0;43m)[0m
-[32m    294[0m     [1;38;5;28mreturn[0m response
-
-[36mFile [32m~/.local/share/uv/python/cpython-3.13.3-linux-x86_64-gnu/lib/python3.13/concurrent/futures/_base.py:458[0m, in [36mFuture.result[34m(self, timeout)[0m
-[32m    457[0m         [1;38;5;28melse[0m:
-[32m--> 458[0m             [1;38;5;28mraise[0m [1;38;5;167mTimeoutError[0m()
-[32m    459[0m [1;38;5;28mfinally[0m:
-[32m    460[0m     [3;38;5;66m# Break a reference cycle with the exception in self._exception[0m
-
-[31mTimeoutError[0m: 
-
-During handling of the above exception, another exception occurred:
-
-[31mRuntimeError[0m                              Traceback (most recent call last)
-[36mCell [32mIn[25], line 13[0m
-[32m     10[0m city = Prompt.ask([33m"Where do you live"[0m, default=[33m"New York"[0m)
-[32m     12[0m [3;38;5;66m# With choices[0m
-[32m---> 13[0m color = [43mPrompt.ask([33m"Pick a color"[0;43m, choices=[[33m"red"[0;43m, [33m"green"[0;43m, [33m"blue"[0;43m])[0m
-[32m     15[0m [3;38;5;66m# Password input[0m
-[32m     16[0m password = Prompt.ask([33m"Enter password"[0m, password=[1;38;5;28mTrue[0m)
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/prompt.py:149[0m, in [36mPromptBase.ask[34m(cls, prompt, console, password, choices, case_sensitive, show_default, show_choices, default, stream)[0m
-[32m    125[0m [3;33m"""Shortcut to construct and run a prompt loop and return the result.[0m
-[32m    126[0m 
-[32m    127[0m [3;33mExample:[0m
-[32m   (...)    138[0m [3;33m    stream (TextIO, optional): Optional text file open for reading to get input. Defaults to None.[0m
-[32m    139[0m [3;33m"""[0m
-[32m    140[0m _prompt = [38;5;28mcls[0m(
-[32m    141[0m     prompt,
-[32m    142[0m     console=console,
-[32m   (...)    147[0m     show_choices=show_choices,
-[32m    148[0m )
-[32m--> 149[0m [1;38;5;28mreturn[0m [43m_prompt(default=default, stream=stream)[0m
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/prompt.py:292[0m, in [36mPromptBase.__call__[34m(self, default, stream)[0m
-[32m    290[0m [38;5;28mself[0m.pre_prompt()
-[32m    291[0m prompt = [38;5;28mself[0m.make_prompt(default)
-[32m--> 292[0m value = [38;5;28;43mself[0;43m.get_input([38;5;28mself[0;43m.console, prompt, [38;5;28mself[0;43m.password, stream=stream)[0m
-[32m    293[0m [1;38;5;28mif[0m value == [33m""[0m [1;38;5;129mand[0m default != ...:
-[32m    294[0m     [1;38;5;28mreturn[0m default
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/prompt.py:211[0m, in [36mPromptBase.get_input[34m(cls, console, prompt, password, stream)[0m
-[32m    193[0m [38;5;129m@classmethod[0m
-[32m    194[0m [1;38;5;28mdef[0;38;5;250m [34mget_input[0m(
-[32m    195[0m     [38;5;28mcls[0m,
-[32m   (...)    199[0m     stream: Optional[TextIO] = [1;38;5;28mNone[0m,
-[32m    200[0m ) -> [38;5;28mstr[0m:
-[32m    201[0m [38;5;250m    [3;33m"""Get input from user.[0m
-[32m    202[0m 
-[32m    203[0m [3;33m    Args:[0m
-[32m   (...)    209[0m [3;33m        str: String from user.[0m
-[32m    210[0m [3;33m    """[0m
-[32m--> 211[0m     [1;38;5;28mreturn[0m [43mconsole.input(prompt, password=password, stream=stream)[0m
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/.venv/lib/python3.13/site-packages/rich/console.py:2170[0m, in [36mConsole.input[34m(self, prompt, markup, emoji, password, stream)[0m
-[32m   2168[0m         result = stream.readline()
-[32m   2169[0m     [1;38;5;28melse[0m:
-[32m-> 2170[0m         result = [38;5;28;43minput[0;43m()[0m
-[32m   2171[0m [1;38;5;28mreturn[0m result
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/src/mrmd_python/worker.py:783[0m, in [36mIPythonWorker.execute_streaming.<locals>.hooked_input[34m(prompt)[0m
-[32m    775[0m request = StdinRequest(
-[32m    776[0m     prompt=prompt,
-[32m    777[0m     password=[1;38;5;28mFalse[0m,
-[32m    778[0m     execId=exec_id [1;38;5;129mor[0m [33m""[0m
-[32m    779[0m )
-[32m    781[0m [3;38;5;66m# Call the callback and wait for response[0m
-[32m    782[0m [3;38;5;66m# The callback is expected to block until input is provided[0m
-[32m--> 783[0m response = [43mon_stdin_request(request)[0m
-[32m    785[0m [3;38;5;66m# Echo the input (like a terminal would)[0m
-[32m    786[0m sys.stdout.write(response)
-
-[36mFile [32m~/Projects/mrmd-packages/mrmd-python/src/mrmd_python/server.py:296[0m, in [36mMRPServer.handle_execute_stream.<locals>.event_generator.<locals>.on_stdin_request[34m(request)[0m
-[32m    294[0m     [1;38;5;28mreturn[0m response
-[32m    295[0m [1;38;5;28mexcept[0m [1;38;5;167mException[0m [1;38;5;28mas[0m e:
-[32m--> 296[0m     [1;38;5;28mraise[0m [1;38;5;167mRuntimeError[0m([33mf"Failed to get input: [1;38;5;132m{[0me[1;38;5;132m}[0;33m"[0m)
-
-[31mRuntimeError[0m: Failed to get input: 
-```
-
 ---
 
 ## Available Spinner Styles
 
 ```python
-from rich.spinner import SPINNERS
-
 # Print all available spinner names
+
 print(list(SPINNERS.keys()))
 ```
 
@@ -871,3 +769,8 @@ Common ones: `dots`, `dots2`, `dots12`, `line`, `arrow`, `arrow3`, `bouncingBall
 3. Combine `Live()` with tables for real-time dashboards
 4. Use task fields for dynamic descriptions
 5. Set `total=None` for indeterminate progress
+from rich.spinner import SPINNERS
+
+```python
+
+```
