@@ -7,10 +7,12 @@ password = getpass.getpass("Enter your password: ")
 print(f"Got {len(password)} character password")
 ```
 
-```output:exec-1768067653253-vk5ww
+```output:exec-1768135334555-oxfo6
 Enter your password: 
-Got 18 character password
+Got 5 character password
 ```
+
+
 
 
 
@@ -39,7 +41,8 @@ time.sleep(3)
 print("done")
 ```
 
-```output:exec-1768067832139-h8hu7
+```output:exec-1768135739462-yjss9
+done
 ```
 
 
