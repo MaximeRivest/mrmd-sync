@@ -414,11 +414,21 @@ function decodeRoomName(url) {
 
 /**
  * Validate room/doc name
+ * Supports both relative names (within docs dir) and absolute paths
  */
 function isValidDocName(name) {
   if (!name || typeof name !== 'string') return false;
-  if (name.length > 255) return false;
-  if (name.includes('..') || name.startsWith('/') || name.startsWith('\\')) return false;
+  if (name.length > 1024) return false; // Allow longer for absolute paths
+  if (name.includes('..')) return false; // No directory traversal
+
+  // Absolute paths are allowed (start with /)
+  if (name.startsWith('/')) {
+    // Must be a reasonable path - no control chars, null bytes, etc.
+    return /^\/[\w\-./]+$/.test(name);
+  }
+
+  // Relative names: alphanumeric, dashes, underscores, dots, slashes
+  if (name.startsWith('\\')) return false;
   return /^[\w\-./]+$/.test(name);
 }
 
@@ -505,9 +515,22 @@ export function createServer(options = {}) {
     const conns = new Set();
     const mutex = new AsyncMutex();
 
-    const filePath = join(resolvedDir, docName.endsWith('.md') ? docName : `${docName}.md`);
+    // Support absolute paths for files outside the docs directory
+    let filePath;
+    let isAbsolutePath = false;
+    if (docName.startsWith('/')) {
+      // Absolute path - use directly
+      isAbsolutePath = true;
+      filePath = docName.endsWith('.md') ? docName : `${docName}.md`;
+    } else {
+      // Relative path - join with docs directory
+      filePath = join(resolvedDir, docName.endsWith('.md') ? docName : `${docName}.md`);
+    }
+
+    // For snapshots, always use the snapshot dir with a safe name
+    const safeSnapshotName = docName.replace(/\//g, '__').replace(/^_+/, '');
     const snapshotPath = persistYjsState
-      ? join(snapshotDir, `${docName.replace(/\//g, '__')}.yjs`)
+      ? join(snapshotDir, `${safeSnapshotName}.yjs`)
       : null;
 
     const ytext = ydoc.getText('content');
@@ -519,6 +542,13 @@ export function createServer(options = {}) {
     let writeTimeout = null;
     let snapshotTimeout = null;
     let cleanupTimeout = null;
+
+    // Log document opening
+    log.info('Opening document', {
+      doc: docName,
+      path: filePath,
+      absolute: isAbsolutePath,
+    });
 
     // Try to load from Yjs snapshot first (for crash recovery)
     let loadedFromSnapshot = false;
@@ -532,7 +562,7 @@ export function createServer(options = {}) {
       }
     }
 
-    // Load from file if no snapshot or as source of truth
+    // Load from file if exists
     const { content, error } = safeReadFile(filePath, maxFileSize);
     if (error) {
       log.error('Error loading file', { path: filePath, error });
