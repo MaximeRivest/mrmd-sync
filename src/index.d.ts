@@ -11,7 +11,7 @@ import { Awareness } from 'y-protocols/awareness';
  * Server configuration options
  */
 export interface ServerConfig {
-  /** Base directory for .md files (default: './docs') */
+  /** Base directory for .md files (default: '.') */
   dir?: string;
 
   /** WebSocket server port (default: 4444) */
@@ -207,7 +207,7 @@ export interface SyncServer {
  * import { createServer } from 'mrmd-sync';
  *
  * const server = createServer({
- *   dir: './docs',
+ *   dir: '.',
  *   port: 4444,
  * });
  *

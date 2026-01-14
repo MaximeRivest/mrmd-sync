@@ -8,7 +8,9 @@ import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { createServer } from '../src/index.js';
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { createHash } from 'crypto';
+import { tmpdir } from 'os';
 import { WebSocket } from 'ws';
 import * as Y from 'yjs';
 import * as syncProtocol from 'y-protocols/sync';
@@ -502,7 +504,7 @@ describe('mrmd-sync', () => {
   });
 
   describe('Yjs State Persistence', () => {
-    it('should create snapshot directory', async () => {
+    it('should create snapshot directory in temp', async () => {
       server = createServer({
         dir: TEST_DIR,
         port: TEST_PORT,
@@ -512,8 +514,11 @@ describe('mrmd-sync', () => {
 
       await wait(100);
 
-      const snapshotDir = join(TEST_DIR, '.mrmd-sync');
-      assert.ok(existsSync(snapshotDir), 'Snapshot directory should exist');
+      // Snapshot dir is now in /tmp with hash of resolved dir
+      const resolvedDir = resolve(TEST_DIR);
+      const dirHash = createHash('sha256').update(resolvedDir).digest('hex').slice(0, 12);
+      const snapshotDir = join(tmpdir(), `mrmd-sync-${dirHash}`);
+      assert.ok(existsSync(snapshotDir), 'Snapshot directory should exist in temp');
 
       await server.close();
       server = null;

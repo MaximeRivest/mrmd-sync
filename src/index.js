@@ -27,6 +27,7 @@ import {
 } from 'fs';
 import { join, dirname, relative, resolve } from 'path';
 import { createHash } from 'crypto';
+import { tmpdir } from 'os';
 
 // =============================================================================
 // PID FILE - Prevents multiple instances on same directory
@@ -259,7 +260,7 @@ class Metrics {
 // =============================================================================
 
 const DEFAULT_CONFIG = {
-  dir: './docs',
+  dir: '.',
   port: 4444,
   auth: null,
   debounceMs: 1000,
@@ -471,7 +472,11 @@ export function createServer(options = {}) {
 
   // Resolve directory path
   const resolvedDir = resolve(dir);
-  const snapshotDir = join(resolvedDir, '.mrmd-sync');
+
+  // Use temp directory for state (PID file, Yjs snapshots)
+  // Hash the resolved dir to create a unique, deterministic temp path
+  const dirHash = createHash('sha256').update(resolvedDir).digest('hex').slice(0, 12);
+  const snapshotDir = join(tmpdir(), `mrmd-sync-${dirHash}`);
 
   // Security check
   if (isDangerousPath(resolvedDir) && !dangerouslyAllowSystemPaths) {
@@ -745,7 +750,6 @@ export function createServer(options = {}) {
 
   const watcher = watch(join(resolvedDir, '**/*.md'), {
     ignoreInitial: true,
-    ignored: [join(snapshotDir, '**')], // Ignore snapshot directory
     awaitWriteFinish: { stabilityThreshold: 300 },
   });
 
@@ -1089,6 +1093,7 @@ export function createServer(options = {}) {
     log.info('Server started', {
       port,
       dir: resolvedDir,
+      stateDir: snapshotDir,
       debounceMs,
       maxConnections,
       persistYjsState,
