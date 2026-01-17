@@ -293,9 +293,13 @@ const DANGEROUS_PATHS = ['/', '/etc', '/usr', '/var', '/bin', '/sbin', '/root', 
 // =============================================================================
 
 const MEMORY_WARNING_MB = 200;   // Warn at 200MB
-const MEMORY_COMPACT_MB = 300;   // Compact at 300MB
+// DISABLED: Compaction causes document duplication!
+// When clients reconnect after compaction, Yjs merges their state with the
+// server's fresh state, causing content to double. Need a different approach.
+// Keeping memory monitoring for warnings only.
+const MEMORY_COMPACT_MB = Infinity;   // Disabled
 const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
-const COMPACTION_INTERVAL_MS = 10 * 60 * 1000; // Compact every 10 minutes max
+const COMPACTION_INTERVAL_MS = Infinity; // Disabled
 
 /**
  * Get current memory usage in MB
@@ -618,6 +622,21 @@ export function createServer(options = {}) {
       : null;
 
     const ytext = ydoc.getText('content');
+    const docData = {
+      docName,
+      ydoc,
+      ytext,
+      awareness,
+      conns,
+      mutex,
+      filePath,
+      snapshotPath,
+      applyFileChange: null,
+      flushWrite: null,
+      scheduleCleanup: null,
+      cancelCleanup: null,
+      scheduleWrite: null,
+    };
 
     // Track state
     let lastFileHash = null;
@@ -683,7 +702,7 @@ export function createServer(options = {}) {
           if (isShuttingDown) return;
 
           isWritingToFile = true;
-          const content = ytext.toString();
+          const content = docData.ytext.toString();
           const hash = contentHash(content);
 
           // Skip if content unchanged
@@ -693,7 +712,7 @@ export function createServer(options = {}) {
             return;
           }
 
-          const { success, error } = atomicWriteFile(filePath, content);
+          const { success, error } = atomicWriteFile(docData.filePath, content);
           if (error) {
             log.error('Error saving file', { path: filePath, error });
             metrics.errorOccurred();
@@ -709,15 +728,17 @@ export function createServer(options = {}) {
       }, debounceMs);
     };
 
+    docData.scheduleWrite = scheduleWrite;
+
     // Listen for Yjs updates
-    ydoc.on('update', scheduleWrite);
+    docData.ydoc.on('update', scheduleWrite);
 
     // Schedule Yjs snapshot saves
     if (persistYjsState && snapshotPath) {
       const scheduleSnapshot = () => {
         clearTimeout(snapshotTimeout);
         snapshotTimeout = setTimeout(() => {
-          const { success, error } = saveYjsSnapshot(snapshotPath, ydoc);
+          const { success, error } = saveYjsSnapshot(snapshotPath, docData.ydoc);
           if (error) {
             log.warn('Failed to save Yjs snapshot', { doc: docName, error });
           }
@@ -735,7 +756,7 @@ export function createServer(options = {}) {
         const newHash = contentHash(newContent);
         if (newHash === lastFileHash) return;
 
-        const oldContent = ytext.toString();
+        const oldContent = docData.ytext.toString();
         if (oldContent === newContent) {
           lastFileHash = newHash;
           return;
@@ -744,14 +765,14 @@ export function createServer(options = {}) {
         isWritingToYjs = true;
         const changes = diffChars(oldContent, newContent);
 
-        ydoc.transact(() => {
+        docData.ydoc.transact(() => {
           let pos = 0;
           for (const change of changes) {
             if (change.added) {
-              ytext.insert(pos, change.value);
+              docData.ytext.insert(pos, change.value);
               pos += change.value.length;
             } else if (change.removed) {
-              ytext.delete(pos, change.value.length);
+              docData.ytext.delete(pos, change.value.length);
             } else {
               pos += change.value.length;
             }
@@ -768,10 +789,10 @@ export function createServer(options = {}) {
     const flushWrite = async () => {
       clearTimeout(writeTimeout);
       await mutex.withLock(async () => {
-        const content = ytext.toString();
+        const content = docData.ytext.toString();
         const hash = contentHash(content);
         if (hash !== lastFileHash) {
-          const { error } = atomicWriteFile(filePath, content);
+          const { error } = atomicWriteFile(docData.filePath, content);
           if (error) {
             log.error('Error flushing file', { path: filePath, error });
           } else {
@@ -780,7 +801,7 @@ export function createServer(options = {}) {
         }
         // Save final snapshot
         if (snapshotPath) {
-          saveYjsSnapshot(snapshotPath, ydoc);
+          saveYjsSnapshot(snapshotPath, docData.ydoc);
         }
       });
       pendingWrites.delete(docName);
@@ -793,8 +814,8 @@ export function createServer(options = {}) {
         if (conns.size === 0) {
           await flushWrite();
           clearTimeout(snapshotTimeout);
-          awareness.destroy();
-          ydoc.destroy();
+          docData.awareness.destroy();
+          docData.ydoc.destroy();
           docs.delete(docName);
           log.info('Cleaned up document', { doc: docName });
         }
@@ -805,21 +826,10 @@ export function createServer(options = {}) {
       clearTimeout(cleanupTimeout);
     };
 
-    const docData = {
-      docName,  // DATA LOSS PREVENTION: Added for compaction logging
-      ydoc,
-      ytext,
-      awareness,
-      conns,
-      mutex,
-      filePath,
-      snapshotPath,
-      applyFileChange,
-      flushWrite,
-      scheduleCleanup,
-      cancelCleanup,
-      scheduleWrite,  // DATA LOSS PREVENTION: Added for re-registration after compaction
-    };
+    docData.applyFileChange = applyFileChange;
+    docData.flushWrite = flushWrite;
+    docData.scheduleCleanup = scheduleCleanup;
+    docData.cancelCleanup = cancelCleanup;
 
     docs.set(docName, docData);
     return docData;
@@ -1126,7 +1136,7 @@ export function createServer(options = {}) {
   // GRACEFUL SHUTDOWN
   // =============================================================================
 
-  const gracefulShutdown = async (signal) => {
+  let gracefulShutdown = async (signal) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
 
@@ -1190,8 +1200,9 @@ export function createServer(options = {}) {
 
   let lastCompactionTime = Date.now();
   let memoryWarningLogged = false;
+  let compactionInProgress = false;
 
-  const memoryMonitorInterval = setInterval(() => {
+  const memoryMonitorInterval = setInterval(async () => {
     if (isShuttingDown) return;
 
     const mem = getMemoryUsageMB();
@@ -1209,6 +1220,8 @@ export function createServer(options = {}) {
       memoryWarningLogged = false;
     }
 
+    if (compactionInProgress) return;
+
     // Trigger compaction if memory is critical OR if enough time has passed
     const timeSinceLastCompaction = Date.now() - lastCompactionTime;
     const shouldCompact =
@@ -1216,65 +1229,68 @@ export function createServer(options = {}) {
       timeSinceLastCompaction >= COMPACTION_INTERVAL_MS;
 
     if (shouldCompact && docs.size > 0) {
-      log.info('Triggering Y.Doc compaction', {
-        reason: mem.heapUsed >= MEMORY_COMPACT_MB ? 'memory-pressure' : 'periodic',
-        heapUsed: `${mem.heapUsed}MB`,
-        docsCount: docs.size,
-      });
-
-      // Compact all documents
-      for (const [docName, docData] of docs) {
-        try {
-          // Save current content to file first (ensure no data loss)
-          const content = docData.ytext.toString();
-          if (content.length > 0) {
-            const { success, error } = atomicWriteFile(docData.filePath, content);
-            if (error) {
-              log.error('Failed to save before compaction', { doc: docName, error });
-              continue;
-            }
-          }
-
-          // Disconnect all clients (they will reconnect and get fresh state)
-          for (const ws of docData.conns) {
-            try {
-              ws.close(4000, 'Document compacted - please reconnect');
-            } catch (e) {
-              // Ignore close errors
-            }
-          }
-          docData.conns.clear();
-
-          // Destroy old doc and create fresh one
-          const oldYdoc = docData.ydoc;
-          const { newYdoc, newYtext } = compactYDoc(docData, log);
-
-          // Update the document entry
-          docData.ydoc = newYdoc;
-          docData.ytext = newYtext;
-
-          // Re-register the update listener
-          newYdoc.on('update', docData.scheduleWrite);
-
-          // Clean up old doc
-          oldYdoc.destroy();
-
-          log.info('Document compacted successfully', { doc: docName });
-        } catch (e) {
-          log.error('Error compacting document', { doc: docName, error: e.message });
-        }
-      }
-
-      lastCompactionTime = Date.now();
-
-      // Force garbage collection if available (--expose-gc flag)
-      if (global.gc) {
-        global.gc();
-        const afterMem = getMemoryUsageMB();
-        log.info('GC completed', {
-          heapUsed: `${afterMem.heapUsed}MB`,
-          freed: `${mem.heapUsed - afterMem.heapUsed}MB`,
+      compactionInProgress = true;
+      try {
+        log.info('Triggering Y.Doc compaction', {
+          reason: mem.heapUsed >= MEMORY_COMPACT_MB ? 'memory-pressure' : 'periodic',
+          heapUsed: `${mem.heapUsed}MB`,
+          docsCount: docs.size,
         });
+
+        // Compact all documents
+        for (const [docName, docData] of docs) {
+          try {
+            await docData.flushWrite();
+
+            // Disconnect all clients (they will reconnect and get fresh state)
+            for (const ws of docData.conns) {
+              try {
+                ws.close(4000, 'Document compacted - please reconnect');
+              } catch (e) {
+                // Ignore close errors
+              }
+            }
+            docData.conns.clear();
+
+            // Destroy old doc and create fresh one
+            const oldYdoc = docData.ydoc;
+            const oldAwareness = docData.awareness;
+            const { newYdoc, newYtext } = compactYDoc(docData, log);
+            const newAwareness = new awarenessProtocol.Awareness(newYdoc);
+
+            oldYdoc.off('update', docData.scheduleWrite);
+
+            // Update the document entry
+            docData.ydoc = newYdoc;
+            docData.ytext = newYtext;
+            docData.awareness = newAwareness;
+
+            // Re-register the update listener
+            newYdoc.on('update', docData.scheduleWrite);
+
+            // Clean up old doc
+            oldAwareness.destroy();
+            oldYdoc.destroy();
+
+            log.info('Document compacted successfully', { doc: docName });
+          } catch (e) {
+            log.error('Error compacting document', { doc: docName, error: e.message });
+          }
+        }
+
+        lastCompactionTime = Date.now();
+
+        // Force garbage collection if available (--expose-gc flag)
+        if (global.gc) {
+          global.gc();
+          const afterMem = getMemoryUsageMB();
+          log.info('GC completed', {
+            heapUsed: `${afterMem.heapUsed}MB`,
+            freed: `${mem.heapUsed - afterMem.heapUsed}MB`,
+          });
+        }
+      } finally {
+        compactionInProgress = false;
       }
     }
   }, MEMORY_CHECK_INTERVAL_MS);
