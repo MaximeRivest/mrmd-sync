@@ -280,6 +280,85 @@ const DEFAULT_CONFIG = {
 const DANGEROUS_PATHS = ['/', '/etc', '/usr', '/var', '/bin', '/sbin', '/root', '/home'];
 
 // =============================================================================
+// DATA LOSS PREVENTION - Memory Monitoring
+// =============================================================================
+// Added after investigating unexplained data loss on 2026-01-16.
+// The sync server crashed with OOM after ~9 minutes, consuming 4GB for a 2.5KB
+// document. User lost ~2.5 hours of work because the editor gave no warning.
+//
+// These safeguards ensure:
+// 1. Memory usage is monitored and warnings are logged
+// 2. Y.Doc compaction runs periodically to bound memory growth
+// 3. Server fails fast (512MB limit in electron main.js) rather than OOM later
+// =============================================================================
+
+const MEMORY_WARNING_MB = 200;   // Warn at 200MB
+const MEMORY_COMPACT_MB = 300;   // Compact at 300MB
+const MEMORY_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+const COMPACTION_INTERVAL_MS = 10 * 60 * 1000; // Compact every 10 minutes max
+
+/**
+ * Get current memory usage in MB
+ */
+function getMemoryUsageMB() {
+  const usage = process.memoryUsage();
+  return {
+    heapUsed: Math.round(usage.heapUsed / 1024 / 1024),
+    heapTotal: Math.round(usage.heapTotal / 1024 / 1024),
+    rss: Math.round(usage.rss / 1024 / 1024),
+    external: Math.round(usage.external / 1024 / 1024),
+  };
+}
+
+/**
+ * Compact a Y.Doc by creating a fresh doc with only current content.
+ * This discards all operation history and tombstones, dramatically reducing memory.
+ *
+ * NOTE: This will disconnect all clients, who will need to reconnect.
+ * The content itself is preserved via the file and snapshot.
+ *
+ * @param {Object} docData - The document data object from getDoc()
+ * @param {Object} log - Logger instance
+ * @returns {Object} - New Y.Doc and Y.Text
+ */
+function compactYDoc(docData, log) {
+  const { ydoc, ytext, docName } = docData;
+
+  // Get current content before compaction
+  const currentContent = ytext.toString();
+  const oldStateSize = Y.encodeStateAsUpdate(ydoc).length;
+
+  log.info('Compacting Y.Doc', {
+    doc: docName,
+    contentLength: currentContent.length,
+    oldStateSize,
+  });
+
+  // Create fresh Y.Doc
+  const newYdoc = new Y.Doc();
+  newYdoc.name = docName;
+  const newYtext = newYdoc.getText('content');
+
+  // Insert current content into fresh doc
+  if (currentContent.length > 0) {
+    newYdoc.transact(() => {
+      newYtext.insert(0, currentContent);
+    });
+  }
+
+  const newStateSize = Y.encodeStateAsUpdate(newYdoc).length;
+
+  log.info('Y.Doc compacted', {
+    doc: docName,
+    oldStateSize,
+    newStateSize,
+    reduction: `${Math.round((1 - newStateSize / oldStateSize) * 100)}%`,
+  });
+
+  return { newYdoc, newYtext };
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
@@ -727,6 +806,7 @@ export function createServer(options = {}) {
     };
 
     const docData = {
+      docName,  // DATA LOSS PREVENTION: Added for compaction logging
       ydoc,
       ytext,
       awareness,
@@ -738,6 +818,7 @@ export function createServer(options = {}) {
       flushWrite,
       scheduleCleanup,
       cancelCleanup,
+      scheduleWrite,  // DATA LOSS PREVENTION: Added for re-registration after compaction
     };
 
     docs.set(docName, docData);
@@ -1099,6 +1180,111 @@ export function createServer(options = {}) {
       persistYjsState,
     });
   });
+
+  // =============================================================================
+  // DATA LOSS PREVENTION - Memory Monitoring
+  // =============================================================================
+  // Added after investigating unexplained data loss on 2026-01-16.
+  // Monitors memory usage and triggers compaction if needed.
+  // =============================================================================
+
+  let lastCompactionTime = Date.now();
+  let memoryWarningLogged = false;
+
+  const memoryMonitorInterval = setInterval(() => {
+    if (isShuttingDown) return;
+
+    const mem = getMemoryUsageMB();
+
+    // Log warning if memory is getting high
+    if (mem.heapUsed >= MEMORY_WARNING_MB && !memoryWarningLogged) {
+      log.warn('High memory usage detected', {
+        heapUsed: `${mem.heapUsed}MB`,
+        heapTotal: `${mem.heapTotal}MB`,
+        rss: `${mem.rss}MB`,
+        threshold: `${MEMORY_WARNING_MB}MB`,
+      });
+      memoryWarningLogged = true;
+    } else if (mem.heapUsed < MEMORY_WARNING_MB) {
+      memoryWarningLogged = false;
+    }
+
+    // Trigger compaction if memory is critical OR if enough time has passed
+    const timeSinceLastCompaction = Date.now() - lastCompactionTime;
+    const shouldCompact =
+      mem.heapUsed >= MEMORY_COMPACT_MB ||
+      timeSinceLastCompaction >= COMPACTION_INTERVAL_MS;
+
+    if (shouldCompact && docs.size > 0) {
+      log.info('Triggering Y.Doc compaction', {
+        reason: mem.heapUsed >= MEMORY_COMPACT_MB ? 'memory-pressure' : 'periodic',
+        heapUsed: `${mem.heapUsed}MB`,
+        docsCount: docs.size,
+      });
+
+      // Compact all documents
+      for (const [docName, docData] of docs) {
+        try {
+          // Save current content to file first (ensure no data loss)
+          const content = docData.ytext.toString();
+          if (content.length > 0) {
+            const { success, error } = atomicWriteFile(docData.filePath, content);
+            if (error) {
+              log.error('Failed to save before compaction', { doc: docName, error });
+              continue;
+            }
+          }
+
+          // Disconnect all clients (they will reconnect and get fresh state)
+          for (const ws of docData.conns) {
+            try {
+              ws.close(4000, 'Document compacted - please reconnect');
+            } catch (e) {
+              // Ignore close errors
+            }
+          }
+          docData.conns.clear();
+
+          // Destroy old doc and create fresh one
+          const oldYdoc = docData.ydoc;
+          const { newYdoc, newYtext } = compactYDoc(docData, log);
+
+          // Update the document entry
+          docData.ydoc = newYdoc;
+          docData.ytext = newYtext;
+
+          // Re-register the update listener
+          newYdoc.on('update', docData.scheduleWrite);
+
+          // Clean up old doc
+          oldYdoc.destroy();
+
+          log.info('Document compacted successfully', { doc: docName });
+        } catch (e) {
+          log.error('Error compacting document', { doc: docName, error: e.message });
+        }
+      }
+
+      lastCompactionTime = Date.now();
+
+      // Force garbage collection if available (--expose-gc flag)
+      if (global.gc) {
+        global.gc();
+        const afterMem = getMemoryUsageMB();
+        log.info('GC completed', {
+          heapUsed: `${afterMem.heapUsed}MB`,
+          freed: `${mem.heapUsed - afterMem.heapUsed}MB`,
+        });
+      }
+    }
+  }, MEMORY_CHECK_INTERVAL_MS);
+
+  // Clean up interval on shutdown
+  const originalGracefulShutdown = gracefulShutdown;
+  gracefulShutdown = async (signal) => {
+    clearInterval(memoryMonitorInterval);
+    return originalGracefulShutdown(signal);
+  };
 
   // =============================================================================
   // PUBLIC API
