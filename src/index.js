@@ -24,6 +24,7 @@ import {
   mkdirSync,
   statSync,
   rmSync,
+  readdirSync,
 } from 'fs';
 import { join, dirname, relative, resolve } from 'path';
 import { createHash } from 'crypto';
@@ -436,6 +437,87 @@ function atomicWriteFile(filePath, content) {
 }
 
 /**
+ * Clean up stale temp files left behind by crashed processes.
+ * Temp files have pattern: {filename}.tmp.{pid}.{timestamp}
+ * A file is stale if:
+ *   - The PID no longer exists (process died)
+ *   - OR the timestamp is older than maxAgeMs (fallback safety)
+ */
+function cleanupStaleTempFiles(dir, log, maxAgeMs = 3600000) {
+  const tmpPattern = /\.tmp\.(\d+)\.(\d+)$/;
+  let cleaned = 0;
+  let errors = 0;
+
+  function walkDir(currentDir) {
+    let entries;
+    try {
+      entries = readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      return; // Skip directories we can't read
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        // Skip hidden directories and node_modules
+        if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          walkDir(fullPath);
+        }
+        continue;
+      }
+
+      // Check if this is a temp file
+      const match = entry.name.match(tmpPattern);
+      if (!match) continue;
+
+      const pid = parseInt(match[1], 10);
+      const timestamp = parseInt(match[2], 10);
+      const age = Date.now() - timestamp;
+
+      // Check if process is dead
+      let processIsDead = false;
+      try {
+        process.kill(pid, 0); // Signal 0 = check if process exists
+      } catch (err) {
+        if (err.code === 'ESRCH') {
+          processIsDead = true; // Process doesn't exist
+        }
+        // EPERM means process exists but we can't signal it
+      }
+
+      // Remove if process is dead OR file is older than maxAgeMs
+      if (processIsDead || age > maxAgeMs) {
+        try {
+          unlinkSync(fullPath);
+          cleaned++;
+          log.info('Removed stale temp file', {
+            path: fullPath,
+            pid,
+            processIsDead,
+            ageMs: age,
+          });
+        } catch (err) {
+          errors++;
+          log.warn('Failed to remove stale temp file', {
+            path: fullPath,
+            error: err.message,
+          });
+        }
+      }
+    }
+  }
+
+  walkDir(dir);
+
+  if (cleaned > 0 || errors > 0) {
+    log.info('Temp file cleanup complete', { cleaned, errors });
+  }
+
+  return { cleaned, errors };
+}
+
+/**
  * Save Yjs document state for crash recovery
  */
 function saveYjsSnapshot(snapshotPath, ydoc) {
@@ -577,6 +659,9 @@ export function createServer(options = {}) {
 
   // Acquire PID lock to prevent multiple instances on same directory
   const releasePidLock = acquirePidLock(snapshotDir, port, log);
+
+  // Clean up stale temp files from previous crashed processes
+  cleanupStaleTempFiles(resolvedDir, log);
 
   // Document storage
   const docs = new Map();
