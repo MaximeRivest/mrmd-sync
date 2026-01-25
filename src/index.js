@@ -842,6 +842,12 @@ export function createServer(options = {}) {
   const watcher = watch(join(resolvedDir, '**/*.md'), {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 300 },
+    ignored: [
+      '**/node_modules/**',
+      '**/.venv/**',
+      '**/__pycache__/**',
+      '**/.git/**',
+    ],
   });
 
   watcher.on('change', async (filePath) => {
