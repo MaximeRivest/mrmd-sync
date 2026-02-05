@@ -30,6 +30,25 @@ import { join, dirname, relative, resolve } from 'path';
 import { createHash } from 'crypto';
 import { tmpdir } from 'os';
 
+const DOC_EXTENSIONS = ['.md', '.qmd'];
+
+function getDocExtension(docName) {
+  if (!docName) return '';
+  const lower = docName.toLowerCase();
+  for (const ext of DOC_EXTENSIONS) {
+    if (lower.endsWith(ext)) return ext;
+  }
+  return '';
+}
+
+function resolveDocFilePath(docName, resolvedDir) {
+  const hasDocExt = !!getDocExtension(docName);
+  if (docName.startsWith('/')) {
+    return hasDocExt ? docName : `${docName}.md`;
+  }
+  return hasDocExt ? join(resolvedDir, docName) : join(resolvedDir, `${docName}.md`);
+}
+
 // =============================================================================
 // PID FILE - Prevents multiple instances on same directory
 // =============================================================================
@@ -689,16 +708,8 @@ export function createServer(options = {}) {
     const mutex = new AsyncMutex();
 
     // Support absolute paths for files outside the docs directory
-    let filePath;
-    let isAbsolutePath = false;
-    if (docName.startsWith('/')) {
-      // Absolute path - use directly
-      isAbsolutePath = true;
-      filePath = docName.endsWith('.md') ? docName : `${docName}.md`;
-    } else {
-      // Relative path - join with docs directory
-      filePath = join(resolvedDir, docName.endsWith('.md') ? docName : `${docName}.md`);
-    }
+    const isAbsolutePath = docName.startsWith('/');
+    const filePath = resolveDocFilePath(docName, resolvedDir);
 
     // For snapshots, always use the snapshot dir with a safe name
     const safeSnapshotName = docName.replace(/\//g, '__').replace(/^_+/, '');
@@ -924,7 +935,10 @@ export function createServer(options = {}) {
   // FILE WATCHER
   // =============================================================================
 
-  const watcher = watch(join(resolvedDir, '**/*.md'), {
+  const watcher = watch([
+    join(resolvedDir, '**/*.md'),
+    join(resolvedDir, '**/*.qmd'),
+  ], {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 300 },
     ignored: [
@@ -952,7 +966,9 @@ export function createServer(options = {}) {
 
   watcher.on('add', async (filePath) => {
     const relativePath = relative(resolvedDir, filePath);
-    const docName = relativePath.replace(/\.md$/, '');
+    const docName = relativePath.toLowerCase().endsWith('.md')
+      ? relativePath.replace(/\.md$/i, '')
+      : relativePath;
 
     if (docs.has(docName)) {
       const { content, error } = safeReadFile(filePath, maxFileSize);
