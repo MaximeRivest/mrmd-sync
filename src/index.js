@@ -294,6 +294,12 @@ const DEFAULT_CONFIG = {
   logLevel: 'info',
   persistYjsState: true, // Save Yjs snapshots for crash recovery
   snapshotIntervalMs: 30000, // Snapshot every 30s
+  storage: null, // null = filesystem (default), or a storage backend object
+                 // e.g. createPostgresStorage({ pool }) for cloud mode
+  pathPrefix: '', // URL path prefix to strip from doc names
+                  // e.g. '/sync' so ws://host/sync/foo becomes doc name 'foo'
+  onRequest: null, // async (req, res, url) => bool - custom HTTP request handler
+                   // Return true if handled, false to fall through to built-in routes
 };
 
 // Paths that require dangerouslyAllowSystemPaths: true
@@ -648,39 +654,53 @@ export function createServer(options = {}) {
     logLevel,
     persistYjsState,
     snapshotIntervalMs,
+    storage,
+    pathPrefix,
+    onRequest,
   } = config;
+
+  // Storage mode: 'postgres' if storage backend provided, 'filesystem' otherwise
+  const storageMode = storage?.type === 'postgres' ? 'postgres' : 'filesystem';
 
   // Initialize logger and metrics
   const log = createLogger(logLevel);
   const metrics = new Metrics();
 
-  // Resolve directory path
-  const resolvedDir = resolve(dir);
+  // Resolve directory path (not needed in postgres-only mode, but keep for compat)
+  const resolvedDir = storageMode === 'filesystem' ? resolve(dir) : dir;
 
-  // Use temp directory for state (PID file, Yjs snapshots)
-  // Hash the resolved dir to create a unique, deterministic temp path
-  const dirHash = createHash('sha256').update(resolvedDir).digest('hex').slice(0, 12);
-  const snapshotDir = join(tmpdir(), `mrmd-sync-${dirHash}`);
+  let dirHash, snapshotDir, releasePidLock;
 
-  // Security check
-  if (isDangerousPath(resolvedDir) && !dangerouslyAllowSystemPaths) {
-    throw new Error(
-      `Refusing to sync dangerous system path: "${resolvedDir}"\n\n` +
-      `Syncing system directories can expose sensitive files.\n\n` +
-      `To proceed, set: createServer({ dangerouslyAllowSystemPaths: true })\n` +
-      `Or use CLI: mrmd-sync --i-know-what-i-am-doing ${dir}`
-    );
+  if (storageMode === 'filesystem') {
+    // Use temp directory for state (PID file, Yjs snapshots)
+    dirHash = createHash('sha256').update(resolvedDir).digest('hex').slice(0, 12);
+    snapshotDir = join(tmpdir(), `mrmd-sync-${dirHash}`);
+
+    // Security check
+    if (isDangerousPath(resolvedDir) && !dangerouslyAllowSystemPaths) {
+      throw new Error(
+        `Refusing to sync dangerous system path: "${resolvedDir}"\n\n` +
+        `Syncing system directories can expose sensitive files.\n\n` +
+        `To proceed, set: createServer({ dangerouslyAllowSystemPaths: true })\n` +
+        `Or use CLI: mrmd-sync --i-know-what-i-am-doing ${dir}`
+      );
+    }
+
+    // Ensure directories exist
+    mkdirSync(resolvedDir, { recursive: true });
+    mkdirSync(snapshotDir, { recursive: true });
+
+    // Acquire PID lock to prevent multiple instances on same directory
+    releasePidLock = acquirePidLock(snapshotDir, port, log);
+
+    // Clean up stale temp files from previous crashed processes
+    cleanupStaleTempFiles(resolvedDir, log);
+  } else {
+    dirHash = 'postgres';
+    snapshotDir = null;
+    releasePidLock = () => {};
+    log.info('Postgres storage mode — no filesystem operations');
   }
-
-  // Ensure directories exist
-  mkdirSync(resolvedDir, { recursive: true });
-  mkdirSync(snapshotDir, { recursive: true }); // Always create for PID file
-
-  // Acquire PID lock to prevent multiple instances on same directory
-  const releasePidLock = acquirePidLock(snapshotDir, port, log);
-
-  // Clean up stale temp files from previous crashed processes
-  cleanupStaleTempFiles(resolvedDir, log);
 
   // Document storage
   const docs = new Map();
@@ -707,13 +727,14 @@ export function createServer(options = {}) {
     const conns = new Set();
     const mutex = new AsyncMutex();
 
-    // Support absolute paths for files outside the docs directory
+    // Filesystem mode: resolve file path for local persistence
     const isAbsolutePath = docName.startsWith('/');
-    const filePath = resolveDocFilePath(docName, resolvedDir);
+    const filePath = storageMode === 'filesystem'
+      ? resolveDocFilePath(docName, resolvedDir) : null;
 
     // For snapshots, always use the snapshot dir with a safe name
     const safeSnapshotName = docName.replace(/\//g, '__').replace(/^_+/, '');
-    const snapshotPath = persistYjsState
+    const snapshotPath = (persistYjsState && snapshotDir)
       ? join(snapshotDir, `${safeSnapshotName}.yjs`)
       : null;
 
@@ -746,45 +767,91 @@ export function createServer(options = {}) {
     log.info('Opening document', {
       doc: docName,
       path: filePath,
-      absolute: isAbsolutePath,
+      storage: storageMode,
     });
 
-    // Try to load from Yjs snapshot first (for crash recovery)
-    let loadedFromSnapshot = false;
-    if (snapshotPath) {
-      const { loaded, error } = loadYjsSnapshot(snapshotPath, ydoc);
-      if (loaded) {
-        loadedFromSnapshot = true;
-        log.info('Loaded Yjs snapshot', { doc: docName });
-      } else if (error) {
-        log.warn('Failed to load Yjs snapshot', { doc: docName, error });
-      }
-    }
+    // ── Load initial state ──────────────────────────────────────────────
 
-    // Load from file if exists
-    const { content, error } = safeReadFile(filePath, maxFileSize);
-    if (error) {
-      log.error('Error loading file', { path: filePath, error });
-      metrics.errorOccurred();
-    } else if (content !== null) {
-      const currentContent = ytext.toString();
-      if (!loadedFromSnapshot || currentContent !== content) {
-        // File is source of truth if different from snapshot
-        if (currentContent !== content) {
-          ydoc.transact(() => {
-            if (ytext.length > 0) {
-              ytext.delete(0, ytext.length);
-            }
-            ytext.insert(0, content);
-          });
+    if (storageMode === 'postgres') {
+      // Postgres mode: load is async, handled via _loadFromPostgres below.
+      // The doc is returned immediately; async load merges state on arrival.
+      // This keeps getDoc synchronous for compatibility with the rest of the code.
+      docData._pgLoaded = false;
+      docData._pgLoadPromise = (async () => {
+        try {
+          const { yjsState, content: pgContent } = await storage.load(docName);
+          // Track what was actually loaded from Postgres (not the current Y.Doc
+          // state, which may already include updates from connected clients that
+          // arrived while this async load was in progress).
+          let loadedContent = '';
+          if (yjsState && yjsState.byteLength > 0) {
+            // Extract the stored content BEFORE merging into the live doc,
+            // because the live doc may already have client updates.
+            try {
+              const tmpDoc = new Y.Doc();
+              Y.applyUpdate(tmpDoc, yjsState);
+              loadedContent = tmpDoc.getText('content').toString();
+              tmpDoc.destroy();
+            } catch { loadedContent = ''; }
+            Y.applyUpdate(ydoc, yjsState);
+            log.info('Loaded from Postgres', { doc: docName, bytes: yjsState.byteLength });
+          } else if (pgContent !== null) {
+            loadedContent = pgContent;
+            ydoc.transact(() => {
+              if (ytext.length > 0) ytext.delete(0, ytext.length);
+              ytext.insert(0, pgContent);
+            });
+            log.info('Loaded text from Postgres', { doc: docName, chars: pgContent.length });
+          }
+          // IMPORTANT: Hash what was loaded, not ytext.toString(). A client may
+          // have already sent content via the sync protocol while Postgres was
+          // loading. If we hash ytext now, the debounced write will think content
+          // is unchanged and skip saving new data to Postgres.
+          lastFileHash = contentHash(loadedContent);
+          docData._pgLoaded = true;
+        } catch (err) {
+          log.error('Postgres load error', { doc: docName, error: err.message });
+          metrics.errorOccurred();
+          docData._pgLoaded = true; // Mark loaded so we don't block forever
+        }
+      })();
+    } else {
+      // Filesystem mode: synchronous load (original behavior)
+
+      // Try to load from Yjs snapshot first (for crash recovery)
+      let loadedFromSnapshot = false;
+      if (snapshotPath) {
+        const { loaded, error } = loadYjsSnapshot(snapshotPath, ydoc);
+        if (loaded) {
+          loadedFromSnapshot = true;
+          log.info('Loaded Yjs snapshot', { doc: docName });
+        } else if (error) {
+          log.warn('Failed to load Yjs snapshot', { doc: docName, error });
         }
       }
-      lastFileHash = contentHash(content);
-      log.info('Loaded file', { path: filePath, chars: content.length });
-      metrics.fileLoaded();
-    }
 
-    // Debounced write to file
+      // Load from file if exists
+      const { content, error } = safeReadFile(filePath, maxFileSize);
+      if (error) {
+        log.error('Error loading file', { path: filePath, error });
+        metrics.errorOccurred();
+      } else if (content !== null) {
+        const currentContent = ytext.toString();
+        if (!loadedFromSnapshot || currentContent !== content) {
+          if (currentContent !== content) {
+            ydoc.transact(() => {
+              if (ytext.length > 0) ytext.delete(0, ytext.length);
+              ytext.insert(0, content);
+            });
+          }
+        }
+        lastFileHash = contentHash(content);
+        log.info('Loaded file', { path: filePath, chars: content.length });
+        metrics.fileLoaded();
+      }
+    } // end storageMode === 'filesystem' load block
+
+    // ── Debounced write (storage-aware) ─────────────────────────────────
     const scheduleWrite = () => {
       if (isWritingToYjs || isShuttingDown) return;
 
@@ -808,14 +875,29 @@ export function createServer(options = {}) {
             return;
           }
 
-          const { success, error } = atomicWriteFile(docData.filePath, content);
-          if (error) {
-            log.error('Error saving file', { path: filePath, error });
-            metrics.errorOccurred();
+          if (storageMode === 'postgres') {
+            // Postgres mode: save Yjs state + text to DB
+            try {
+              const yjsState = Y.encodeStateAsUpdate(docData.ydoc);
+              await storage.save(docName, content, yjsState);
+              lastFileHash = hash;
+              log.info('Saved to Postgres', { doc: docName, chars: content.length });
+              metrics.fileSaved();
+            } catch (err) {
+              log.error('Postgres save error', { doc: docName, error: err.message });
+              metrics.errorOccurred();
+            }
           } else {
-            lastFileHash = hash;
-            log.info('Saved file', { path: filePath, chars: content.length });
-            metrics.fileSaved();
+            // Filesystem mode: atomic write to .md file
+            const { success, error } = atomicWriteFile(docData.filePath, content);
+            if (error) {
+              log.error('Error saving file', { path: filePath, error });
+              metrics.errorOccurred();
+            } else {
+              lastFileHash = hash;
+              log.info('Saved file', { path: filePath, chars: content.length });
+              metrics.fileSaved();
+            }
           }
 
           isWritingToFile = false;
@@ -888,14 +970,24 @@ export function createServer(options = {}) {
         const content = docData.ytext.toString();
         const hash = contentHash(content);
         if (hash !== lastFileHash) {
-          const { error } = atomicWriteFile(docData.filePath, content);
-          if (error) {
-            log.error('Error flushing file', { path: filePath, error });
+          if (storageMode === 'postgres') {
+            try {
+              const yjsState = Y.encodeStateAsUpdate(docData.ydoc);
+              await storage.save(docName, content, yjsState);
+              log.info('Flushed to Postgres on shutdown', { doc: docName });
+            } catch (err) {
+              log.error('Postgres flush error', { doc: docName, error: err.message });
+            }
           } else {
-            log.info('Flushed file on shutdown', { path: filePath });
+            const { error } = atomicWriteFile(docData.filePath, content);
+            if (error) {
+              log.error('Error flushing file', { path: filePath, error });
+            } else {
+              log.info('Flushed file on shutdown', { path: filePath });
+            }
           }
         }
-        // Save final snapshot
+        // Save final snapshot (filesystem mode only)
         if (snapshotPath) {
           saveYjsSnapshot(snapshotPath, docData.ydoc);
         }
@@ -932,65 +1024,69 @@ export function createServer(options = {}) {
   }
 
   // =============================================================================
-  // FILE WATCHER
+  // FILE WATCHER (filesystem mode only)
   // =============================================================================
 
-  const watcher = watch([
-    join(resolvedDir, '**/*.md'),
-    join(resolvedDir, '**/*.qmd'),
-  ], {
-    ignoreInitial: true,
-    awaitWriteFinish: { stabilityThreshold: 300 },
-    ignored: [
-      '**/node_modules/**',
-      '**/.venv/**',
-      '**/__pycache__/**',
-      '**/.git/**',
-    ],
-  });
+  let watcher = null;
 
-  watcher.on('change', async (filePath) => {
-    for (const [name, doc] of docs) {
-      if (doc.filePath === filePath) {
+  if (storageMode === 'filesystem') {
+    watcher = watch([
+      join(resolvedDir, '**/*.md'),
+      join(resolvedDir, '**/*.qmd'),
+    ], {
+      ignoreInitial: true,
+      awaitWriteFinish: { stabilityThreshold: 300 },
+      ignored: [
+        '**/node_modules/**',
+        '**/.venv/**',
+        '**/__pycache__/**',
+        '**/.git/**',
+      ],
+    });
+
+    watcher.on('change', async (filePath) => {
+      for (const [name, doc] of docs) {
+        if (doc.filePath === filePath) {
+          const { content, error } = safeReadFile(filePath, maxFileSize);
+          if (error) {
+            log.error('Error reading changed file', { path: filePath, error });
+            metrics.errorOccurred();
+          } else if (content !== null) {
+            await doc.applyFileChange(content);
+          }
+          break;
+        }
+      }
+    });
+
+    watcher.on('add', async (filePath) => {
+      const relativePath = relative(resolvedDir, filePath);
+      const docName = relativePath.toLowerCase().endsWith('.md')
+        ? relativePath.replace(/\.md$/i, '')
+        : relativePath;
+
+      if (docs.has(docName)) {
         const { content, error } = safeReadFile(filePath, maxFileSize);
         if (error) {
-          log.error('Error reading changed file', { path: filePath, error });
+          log.error('Error reading new file', { path: filePath, error });
           metrics.errorOccurred();
         } else if (content !== null) {
-          await doc.applyFileChange(content);
+          await docs.get(docName).applyFileChange(content);
         }
-        break;
       }
-    }
-  });
+    });
 
-  watcher.on('add', async (filePath) => {
-    const relativePath = relative(resolvedDir, filePath);
-    const docName = relativePath.toLowerCase().endsWith('.md')
-      ? relativePath.replace(/\.md$/i, '')
-      : relativePath;
-
-    if (docs.has(docName)) {
-      const { content, error } = safeReadFile(filePath, maxFileSize);
-      if (error) {
-        log.error('Error reading new file', { path: filePath, error });
-        metrics.errorOccurred();
-      } else if (content !== null) {
-        await docs.get(docName).applyFileChange(content);
-      }
-    }
-  });
-
-  watcher.on('error', (err) => {
-    log.error('File watcher error', { error: err.message });
-    metrics.errorOccurred();
-  });
+    watcher.on('error', (err) => {
+      log.error('File watcher error', { error: err.message });
+      metrics.errorOccurred();
+    });
+  }
 
   // =============================================================================
   // HTTP SERVER WITH HEALTH ENDPOINT
   // =============================================================================
 
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     // CORS headers
@@ -1001,6 +1097,21 @@ export function createServer(options = {}) {
       res.writeHead(204);
       res.end();
       return;
+    }
+
+    // Custom request handler (e.g. sync-relay's document API)
+    if (onRequest) {
+      try {
+        const handled = await onRequest(req, res, url);
+        if (handled) return;
+      } catch (err) {
+        log.error('onRequest handler error', { error: err.message });
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+        return;
+      }
     }
 
     // Health check endpoint
@@ -1058,6 +1169,17 @@ export function createServer(options = {}) {
   });
 
   wss.on('connection', async (ws, req) => {
+    // Hook: let the caller handle custom connection types (e.g. runtime tunnels)
+    // before the Yjs sync handler runs. Return true to take ownership.
+    if (config.onConnection) {
+      try {
+        const handled = await config.onConnection(ws, req);
+        if (handled) return;
+      } catch (err) {
+        log.error('onConnection hook error', { error: err.message });
+      }
+    }
+
     if (isShuttingDown) {
       ws.close(1001, 'Server shutting down');
       return;
@@ -1069,7 +1191,15 @@ export function createServer(options = {}) {
       return;
     }
 
-    const docName = decodeRoomName(req.url);
+    let docName = decodeRoomName(req.url);
+
+    // Strip path prefix if configured (e.g. '/sync' → 'userId/project/doc')
+    if (pathPrefix) {
+      const normalizedPrefix = pathPrefix.replace(/^\/+|\/+$/g, '');
+      if (normalizedPrefix && (docName === normalizedPrefix || docName.startsWith(`${normalizedPrefix}/`))) {
+        docName = docName.slice(normalizedPrefix.length).replace(/^\/+/, '');
+      }
+    }
 
     if (!isValidDocName(docName)) {
       log.warn('Connection rejected: invalid doc name', { docName });
@@ -1259,8 +1389,8 @@ export function createServer(options = {}) {
     const flushPromises = Array.from(docs.values()).map((doc) => doc.flushWrite());
     await Promise.all(flushPromises);
 
-    // Close watcher
-    await watcher.close();
+    // Close watcher (filesystem mode only)
+    if (watcher) await watcher.close();
 
     // Close servers
     wss.close();
@@ -1292,6 +1422,7 @@ export function createServer(options = {}) {
       port,
       dir: resolvedDir,
       stateDir: snapshotDir,
+      storage: storageMode,
       debounceMs,
       maxConnections,
       persistYjsState,
