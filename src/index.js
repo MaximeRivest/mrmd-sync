@@ -26,7 +26,7 @@ import {
   rmSync,
   readdirSync,
 } from 'fs';
-import { join, dirname, relative, resolve } from 'path';
+import { join, dirname, relative, resolve, basename } from 'path';
 import { createHash } from 'crypto';
 import { tmpdir } from 'os';
 
@@ -1030,18 +1030,29 @@ export function createServer(options = {}) {
   let watcher = null;
 
   if (storageMode === 'filesystem') {
+    // Ignore directories that should never be watched for .md/.qmd changes.
+    // Uses a function so we can combine: all hidden dirs (. prefix) + known heavy dirs.
+    const IGNORED_DIR_NAMES = new Set([
+      'node_modules', 'venv', '__pycache__', 'target', 'dist', 'build',
+      '_site', '_freeze', '_build', 'site-packages', 'vendor', 'deps',
+      '.julia', 'pkg', 'Pods', 'DerivedData',
+    ]);
+    const ignoreFn = (filePath) => {
+      const base = basename(filePath);
+      // Skip all hidden directories/files (catches .git, .venv*, .tox, .mypy_cache, etc.)
+      if (base.startsWith('.') && base !== '.') return true;
+      // Skip known heavy non-hidden directories
+      if (IGNORED_DIR_NAMES.has(base)) return true;
+      return false;
+    };
+
     watcher = watch([
       join(resolvedDir, '**/*.md'),
       join(resolvedDir, '**/*.qmd'),
     ], {
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 300 },
-      ignored: [
-        '**/node_modules/**',
-        '**/.venv/**',
-        '**/__pycache__/**',
-        '**/.git/**',
-      ],
+      ignored: ignoreFn,
     });
 
     watcher.on('change', async (filePath) => {
