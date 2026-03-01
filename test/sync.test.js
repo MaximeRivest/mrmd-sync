@@ -414,7 +414,6 @@ describe('mrmd-sync', () => {
         '/absolute/path',
         '\\windows\\path',
         'doc<script>',
-        'doc name with spaces', // contains space - invalid per regex
       ];
 
       for (const name of invalidNames) {
@@ -442,6 +441,7 @@ describe('mrmd-sync', () => {
         'with-dash',
         'with_underscore',
         'with.dot',
+        'doc name with spaces',
         'nested/path',
         'deep/nested/path',
       ];

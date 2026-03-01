@@ -615,12 +615,13 @@ function isValidDocName(name) {
   // Absolute paths are allowed (start with /)
   if (name.startsWith('/')) {
     // Must be a reasonable path - no control chars, null bytes, etc.
-    return /^\/[\w\-./]+$/.test(name);
+    // Allow spaces because real file names can contain spaces.
+    return /^\/[\w\-./ ]+$/.test(name);
   }
 
-  // Relative names: alphanumeric, dashes, underscores, dots, slashes
+  // Relative names: alphanumeric, dashes, underscores, dots, slashes, spaces
   if (name.startsWith('\\')) return false;
-  return /^[\w\-./]+$/.test(name);
+  return /^[\w\-./ ]+$/.test(name);
 }
 
 /**
