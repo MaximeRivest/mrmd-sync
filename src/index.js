@@ -1228,6 +1228,11 @@ export function createServer(options = {}) {
           ws.close(1008, 'Unauthorized');
           return;
         }
+
+        // Allow auth handlers to attach metadata (e.g. role/read-only policy).
+        if (authResult && typeof authResult === 'object') {
+          ws._mrmdAuth = authResult;
+        }
       } catch (err) {
         log.error('Auth error', { error: err.message });
         ws.close(1011, 'Auth error');
@@ -1294,6 +1299,27 @@ export function createServer(options = {}) {
 
         const decoder = decoding.createDecoder(data);
         const messageType = decoding.readVarUint(decoder);
+
+        // Read-only support: allow initial sync requests and awareness, but block
+        // client-originated document updates when the auth handler marks the
+        // connection as read-only.
+        const authMeta = ws._mrmdAuth || null;
+        const readOnly = authMeta?.readOnly === true
+          || (typeof authMeta?.isReadOnly === 'function' && authMeta.isReadOnly());
+
+        if (readOnly && messageType === messageSync) {
+          // Yjs sync protocol:
+          //   byte[0] = message type (0 = sync)
+          //   byte[1] = sync subtype (0 = step1, 1 = step2, 2 = update)
+          // In read-only mode we allow step1 and step2 (the initial handshake),
+          // but block update (subtype 2) because those carry actual edits.
+          // Step2 is the client's reply to the server's step1 — it contains
+          // the diff the server needs, which is necessary for sync to complete.
+          const syncSubtype = data.length >= 2 ? data[1] : null;
+          if (syncSubtype !== 0 && syncSubtype !== 1) {
+            return;
+          }
+        }
 
         switch (messageType) {
           case messageSync: {
