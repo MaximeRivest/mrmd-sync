@@ -1,5 +1,11 @@
 # mrmd-sync
 
+> **Legacy standalone repo**
+> 
+> `mrmd-sync` has been merged into [`mrmd`](../mrmd) and now lives inside the daemon as an in-process service.
+> New work should target `mrmd`.
+> This repo remains only for legacy reference and transition support.
+
 Real-time sync server for collaborative markdown editing. Connects browsers to your filesystem with bidirectional sync via Yjs CRDTs.
 
 ```

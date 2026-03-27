@@ -1,7 +1,7 @@
 {
   "name": "mrmd-sync",
   "version": "0.3.5",
-  "description": "Production-ready sync server for mrmd - real-time collaboration with file persistence",
+  "description": "Legacy standalone sync server for mrmd (merged into mrmd)",
   "type": "module",
   "main": "src/index.js",
   "types": "src/index.d.ts",
